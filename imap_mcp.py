@@ -1,4 +1,4 @@
-"""siteground-mail-mcp: MCP server (stdio) for one IMAP/SMTP mailbox: read, search, draft and send.
+"""imap-email-mcp: MCP server (stdio) for one IMAP/SMTP mailbox: read, search, draft and send.
 
 Standard library only. Config via environment variables:
   MAIL_USER   account address, e.g. you@example.com   (required)
@@ -411,7 +411,7 @@ def handle(box, req):
     if method == "initialize":
         result = {"protocolVersion": req.get("params", {}).get("protocolVersion", "2025-06-18"),
                   "capabilities": {"tools": {}},
-                  "serverInfo": {"name": "siteground-mail-mcp", "version": "0.1.0"}}
+                  "serverInfo": {"name": "imap-email-mcp", "version": "0.1.0"}}
     elif method == "tools/list":
         result = {"tools": TOOLS}
     elif method == "tools/call":
@@ -535,7 +535,7 @@ def yes(prompt):
 
 
 def setup():
-    print("siteground-mail-mcp setup\n")
+    print("imap-email-mcp setup\n")
     user = ""
     while "@" not in user:
         user = ask("Email address").lower()

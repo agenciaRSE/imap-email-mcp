@@ -1,6 +1,6 @@
-# siteground-mail-mcp
+# imap-email-mcp
 
-Let Claude read, search, draft and send email from your **SiteGround** mailbox — or any other IMAP/SMTP account (cPanel, Plesk, DirectAdmin, Dovecot and most hosting providers).
+An email MCP server for **any IMAP/SMTP mailbox**: let Claude read, search, draft and send email from your hosting account — SiteGround, cPanel, Plesk, DirectAdmin, Dovecot and most hosting providers. Tested on SiteGround.
 
 It is an [MCP](https://modelcontextprotocol.io) server for **Claude Desktop**, **Claude Code** and any other MCP client.
 
@@ -36,8 +36,8 @@ Claude: (searches your inbox, reads the messages, saves a reply in your Drafts f
 ## Quick start
 
 ```bash
-git clone https://github.com/agenciaRSE/siteground-mail-mcp.git
-cd siteground-mail-mcp
+git clone https://github.com/agenciaRSE/imap-email-mcp.git
+cd imap-email-mcp
 python imap_mcp.py setup
 ```
 
@@ -85,7 +85,7 @@ python imap_mcp.py setup
 ```
 
 ```
-siteground-mail-mcp setup
+imap-email-mcp setup
 
 Email address: you@yourdomain.com
 Mail server [mail.yourdomain.com]:            <- press Enter to accept
@@ -149,7 +149,7 @@ Add the server inside `mcpServers`:
   "mcpServers": {
     "mail-yourdomain": {
       "command": "python",
-      "args": ["C:/path/to/siteground-mail-mcp/imap_mcp.py"],
+      "args": ["C:/path/to/imap-email-mcp/imap_mcp.py"],
       "env": { "MAIL_USER": "you@yourdomain.com" }
     }
   }
@@ -163,7 +163,7 @@ Add the server inside `mcpServers`:
 ### 2b. Claude Code
 
 ```bash
-claude mcp add mail-yourdomain --scope user -e MAIL_USER=you@yourdomain.com -- python /path/to/siteground-mail-mcp/imap_mcp.py
+claude mcp add mail-yourdomain --scope user -e MAIL_USER=you@yourdomain.com -- python /path/to/imap-email-mcp/imap_mcp.py
 ```
 
 `--scope user` makes it available in all your projects. Check it with `claude mcp list`.
