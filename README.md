@@ -248,10 +248,10 @@ python imap_mcp.py set-password you@yourdomain.com
 | Tool | What it does |
 |---|---|
 | `list_folders` | Lists the mailbox folders. |
-| `search_emails` | Newest first: uid, from, subject, date, unread. Filters: `folder` (default `INBOX`), `text` (full text, any language), `from_`, `since` (`YYYY-MM-DD`), `unseen_only`, `limit` (default 20). |
+| `search_emails` | Newest first: uid, from, subject, date, unread. Filters: `folder` (default `INBOX`), `text` (full text, any language), `from_`, `since` (`YYYY-MM-DD`), `unseen_only`, `limit` (default 20, max 100). |
 | `read_email` | One message by `uid`: headers, plain-text body (HTML converted, cut at 20,000 characters), attachment list. Does not mark it as read. |
 | `create_draft` | Saves a draft in Drafts. Fields: `to`, `cc`, `subject`, `body`. With `reply_to_uid` (and `reply_folder`) it threads the reply and fills in `To` and `Re: subject`. |
-| `send_email` | Sends through SMTP and saves a copy in Sent. Same fields as `create_draft`. |
+| `send_email` | Sends through SMTP and saves a copy in Sent. Same fields as `create_draft`, but `to` is always required, so the approval prompt shows who gets the mail (a reply's `Reply-To` could point somewhere else). |
 
 The Drafts and Sent folders are found automatically: first by their IMAP special-use flags, then by common names (`INBOX.Drafts`, `Sent Items`…).
 

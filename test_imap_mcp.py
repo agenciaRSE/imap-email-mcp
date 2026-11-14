@@ -28,6 +28,31 @@ assert names == ["list_folders", "search_emails", "read_email", "create_draft", 
 r = im.handle(box, {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "nope"}})
 assert r["result"]["isError"]
 assert im.handle(box, {"jsonrpc": "2.0", "id": 4, "method": "foo"})["error"]["code"] == -32601
+
+# security
+import time
+for bad in ("a\r\nb", "x\n", "\0"):
+    try:
+        im.quote(bad)
+        raise SystemExit(f"quote accepted {bad!r}")
+    except ValueError:
+        pass
+for bad in ("1:*", "1 BODY[]", 0, -1, True, 1.5):
+    try:
+        im.check_uid(bad)
+        raise SystemExit(f"check_uid accepted {bad!r}")
+    except ValueError:
+        pass
+assert im.check_uid(42) == "42"
+t0 = time.time()
+im.html_to_text("<script " * 20000)
+assert time.time() - t0 < 1, "html_to_text is slow on unclosed tags"
+assert im.html_to_text("a<script>x</script>b<SCRIPT>y</Script>c<style>z") == "abc"
+try:
+    im.Mailbox({}).send(body="x", reply_to_uid=1)
+    raise SystemExit("send_email accepted a reply without 'to'")
+except ValueError:
+    pass
 print("OK")
 
 # setup helpers
