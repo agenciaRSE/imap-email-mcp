@@ -238,17 +238,23 @@ class Mailbox:
                 out.append({"name": name, "flags": mt["flags"].split()})
         return out
 
+    SPECIAL_NAMES = {
+        "Drafts": ("drafts", "drafts items", "drafts messages"),
+        "Sent": ("sent", "sent items", "sent messages"),
+        "Junk": ("junk", "spam", "junk e-mail", "junk email", "bulk mail"),
+        "Trash": ("trash", "deleted items", "deleted messages", "bin"),
+    }
+
     def special(self, m, kind):
-        """Find the Drafts / Sent folder by SPECIAL-USE flag, then by name."""
+        """Find the Drafts / Sent / Junk / Trash folder by SPECIAL-USE flag, then by name."""
         if self._special is None:
             self._special = {}
             fl = self.folders(m)
-            for kind_ in ("Drafts", "Sent"):
+            for kind_, names in self.SPECIAL_NAMES.items():
                 hit = next((f["name"] for f in fl if "\\" + kind_ in f["flags"]), None)
-                if not hit:
-                    hit = next((f["name"] for f in fl
-                                if f["name"].split(".")[-1].split("/")[-1].lower()
-                                in (kind_.lower(), kind_.lower() + " items", kind_.lower() + " messages")), None)
+                if not hit:  # by name, in the order of preference above (Junk before spam)
+                    leaf = {f["name"].split(".")[-1].split("/")[-1].lower(): f["name"] for f in fl}
+                    hit = next((leaf[n] for n in names if n in leaf), None)
                 self._special[kind_] = hit or "INBOX." + kind_
         return self._special[kind]
 
@@ -386,6 +392,67 @@ class Mailbox:
         finally:
             m.logout()
 
+    def _move(self, m, uid, folder, to_folder):
+        """UID MOVE (RFC 6851), or COPY + delete when the server lacks it. Returns the new UID if known."""
+        u = check_uid(uid)
+        self.select(m, folder, readonly=False)
+        typ, data = m.uid("FETCH", u, "(UID)")
+        if typ != "OK" or not data or data[0] is None:
+            raise RuntimeError(f"Message UID {uid} not found in {folder}")
+        if folder == to_folder:
+            return {"moved": False, "uid": uid, "folder": folder, "note": "already there"}
+        m.untagged_responses.pop("COPYUID", None)  # only this move's code
+        if "MOVE" in m.capabilities:
+            typ, data = m.uid("MOVE", u, quote(to_folder))
+        else:
+            typ, data = m.uid("COPY", u, quote(to_folder))
+            if typ == "OK":
+                m.uid("STORE", u, "+FLAGS.SILENT", "(\\Deleted)")
+                m.uid("EXPUNGE", u) if "UIDPLUS" in m.capabilities else m.expunge()
+        if typ != "OK":
+            raise RuntimeError(f"Move to {to_folder} failed: {data}")
+        new_uid = None
+        # [COPYUID validity src dst]: imaplib keeps it as b"validity src dst"
+        for code in m.untagged_responses.get("COPYUID") or []:
+            mt = re.fullmatch(rb"\d+ \S+ (\d+)", code.strip())
+            if mt and mt[1].isdigit():
+                new_uid = int(mt[1])
+        return {"moved": True, "from": folder, "to": to_folder, "new_uid": new_uid}
+
+    def move(self, uid, to_folder, folder="INBOX"):
+        m = self.imap()
+        try:
+            names = [f["name"] for f in self.folders(m)]
+            if to_folder not in names:
+                raise ValueError(f"Unknown folder {to_folder!r}. Folders: {', '.join(names)}")
+            return self._move(m, uid, folder, to_folder)
+        finally:
+            m.logout()
+
+    def to_special(self, uid, kind, folder):
+        m = self.imap()
+        try:
+            return self._move(m, uid, folder or ("INBOX" if kind != "INBOX" else self.special(m, "Junk")),
+                              "INBOX" if kind == "INBOX" else self.special(m, kind))
+        finally:
+            m.logout()
+
+    def set_flags(self, uid, folder="INBOX", read=None, flagged=None):
+        if read is None and flagged is None:
+            raise ValueError("Give read and/or flagged")
+        m = self.imap()
+        try:
+            u = check_uid(uid)
+            self.select(m, folder, readonly=False)
+            for value, flag in ((read, "\\Seen"), (flagged, "\\Flagged")):
+                if value is not None:
+                    typ, data = m.uid("STORE", u, ("+" if value else "-") + "FLAGS.SILENT", f"({flag})")
+                    if typ != "OK":
+                        raise RuntimeError(f"STORE failed: {data}")
+            return {"uid": uid, "folder": folder, "read": read, "flagged": flagged}
+        finally:
+            m.logout()
+
 # ---------------------------------------------------------------- MCP (JSON-RPC over stdio)
 
 
@@ -423,6 +490,28 @@ TOOLS = [
      "description": "Send an email via SMTP and copy it to Sent. Irreversible: only when the user asked to send. "
                     "'to' is required, also when replying.",
      "inputSchema": {"type": "object", "required": ["body"], "properties": COMPOSE}},
+    {"name": "move_email",
+     "description": "Move a message to another folder (see list_folders). The message gets a new UID there (new_uid).",
+     "inputSchema": {"type": "object", "required": ["uid", "to_folder"], "properties": {
+         "uid": {"type": "integer"}, "folder": {**S, "description": "Folder the message is in now. Default INBOX."},
+         "to_folder": {**S, "description": "Destination folder, exactly as list_folders shows it."}}}},
+    {"name": "mark_spam",
+     "description": "Move a message to the Junk folder.",
+     "inputSchema": {"type": "object", "required": ["uid"], "properties": {
+         "uid": {"type": "integer"}, "folder": {**S, "description": "Folder the message is in now. Default INBOX."}}}},
+    {"name": "not_spam",
+     "description": "Move a message from Junk (or the given folder) back to INBOX.",
+     "inputSchema": {"type": "object", "required": ["uid"], "properties": {
+         "uid": {"type": "integer"}, "folder": {**S, "description": "Folder the message is in now. Default: the Junk folder."}}}},
+    {"name": "trash_email",
+     "description": "Move a message to Trash (recoverable from there; nothing is deleted for good).",
+     "inputSchema": {"type": "object", "required": ["uid"], "properties": {
+         "uid": {"type": "integer"}, "folder": {**S, "description": "Folder the message is in now. Default INBOX."}}}},
+    {"name": "mark_email",
+     "description": "Mark a message read/unread and/or flagged/unflagged.",
+     "inputSchema": {"type": "object", "required": ["uid"], "properties": {
+         "uid": {"type": "integer"}, "folder": {**S, "description": "Default INBOX."},
+         "read": {"type": "boolean"}, "flagged": {"type": "boolean"}}}},
 ]
 
 
@@ -440,6 +529,16 @@ def call_tool(box, name, args):
         return box.draft(**args)
     if name == "send_email":
         return box.send(**args)
+    if name == "move_email":
+        return box.move(**args)
+    if name == "mark_spam":
+        return box.to_special(args["uid"], "Junk", args.get("folder") or "INBOX")
+    if name == "not_spam":
+        return box.to_special(args["uid"], "INBOX", args.get("folder"))
+    if name == "trash_email":
+        return box.to_special(args["uid"], "Trash", args.get("folder") or "INBOX")
+    if name == "mark_email":
+        return box.set_flags(**args)
     raise ValueError(f"Unknown tool {name}")
 
 
@@ -451,7 +550,7 @@ def handle(box, req):
     if method == "initialize":
         result = {"protocolVersion": req.get("params", {}).get("protocolVersion", "2025-06-18"),
                   "capabilities": {"tools": {}},
-                  "serverInfo": {"name": "imap-email-mcp", "version": "0.2.0"}}
+                  "serverInfo": {"name": "imap-email-mcp", "version": "0.3.0"}}
     elif method == "tools/list":
         result = {"tools": TOOLS}
     elif method == "tools/call":

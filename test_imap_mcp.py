@@ -24,7 +24,25 @@ r = im.handle(box, {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params":
 assert r["result"]["protocolVersion"] == "2025-06-18"
 assert im.handle(box, {"jsonrpc": "2.0", "method": "notifications/initialized"}) is None
 names = [t["name"] for t in im.handle(box, {"jsonrpc": "2.0", "id": 2, "method": "tools/list"})["result"]["tools"]]
-assert names == ["list_folders", "search_emails", "read_email", "create_draft", "send_email"]
+assert names == ["list_folders", "search_emails", "read_email", "create_draft", "send_email",
+                 "move_email", "mark_spam", "not_spam", "trash_email", "mark_email"]
+
+# special folders: SPECIAL-USE flag first, then name (Junk preferred over spam)
+class FakeList:
+    def __init__(self, lines): self.lines = lines
+    def list(self): return "OK", [l.encode() for l in self.lines]
+b = im.Mailbox({})
+fake = FakeList([r'(\HasNoChildren) "." INBOX.spam', r'(\HasNoChildren) "." INBOX.Junk',
+                 r'(\HasNoChildren) "." INBOX.Trash', r'(\HasNoChildren \Sent) "." "INBOX.Enviados"'])
+assert b.special(fake, "Junk") == "INBOX.Junk"
+assert b.special(fake, "Trash") == "INBOX.Trash"
+assert b.special(fake, "Sent") == "INBOX.Enviados"
+assert b.special(fake, "Drafts") == "INBOX.Drafts"
+try:
+    im.Mailbox({}).set_flags(1)
+    raise SystemExit("mark_email accepted no flags")
+except ValueError:
+    pass
 r = im.handle(box, {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "nope"}})
 assert r["result"]["isError"]
 assert im.handle(box, {"jsonrpc": "2.0", "id": 4, "method": "foo"})["error"]["code"] == -32601

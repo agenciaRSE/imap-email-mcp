@@ -182,7 +182,10 @@ Talk to Claude normally. For example:
 - *"Find the invoice SiteGround sent me in October."*
 - *"Read the latest email from Lorenzo and draft a reply saying I'll call him tomorrow."*
 - *"Draft an email to ana@client.com with the summary of this conversation."*
+- *"Move the email from Carlos out of Junk to the inbox."* / *"Mark the Porkbun emails as spam."*
 - *"Send it."* — Claude asks for your approval first (see [Security](#security)).
+
+Moving, marking as spam, sending to Trash and marking read/unread or flagged are also available. Nothing is ever deleted for good: Trash keeps it.
 
 Drafts land in your **Drafts** folder. Open them in your mail app to review, edit and send them yourself.
 
