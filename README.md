@@ -1,6 +1,6 @@
 # imap-email-mcp
 
-An email MCP server for **any IMAP/SMTP mailbox**: let Claude read, search, draft and send email from your hosting account — SiteGround, cPanel, Plesk, DirectAdmin, Dovecot and most hosting providers. Tested on SiteGround.
+An email MCP server for **any IMAP/SMTP mailbox**: let Claude read, search, draft, send and organise email from your hosting account — SiteGround, cPanel, Plesk, DirectAdmin, Dovecot and most hosting providers. Tested on SiteGround.
 
 It is an [MCP](https://modelcontextprotocol.io) server for **Claude Desktop**, **Claude Code** and any other MCP client.
 
@@ -13,6 +13,7 @@ Claude: (searches your inbox, reads the messages, saves a reply in your Drafts f
 - **Guided setup.** One command tests your login, stores the password securely and adds the server to Claude for you.
 - **Works on the mail server itself.** Whatever Claude does shows up in your usual mail app (Outlook, Apple Mail, Thunderbird, webmail): drafts in *Drafts*, sent mail in *Sent*.
 - **Reading never marks a message as read.**
+- **Organises your mailbox too:** moves messages between folders, out of Junk or into it, to Trash, and marks them read or flagged. Nothing is ever deleted for good.
 - **The password never sits in a config file.** It is kept in the Windows Credential Manager, the macOS Keychain or the Linux Secret Service.
 
 ---
@@ -256,7 +257,15 @@ python imap_mcp.py set-password you@yourdomain.com
 | `create_draft` | Saves a draft in Drafts. Fields: `to`, `cc`, `subject`, `body`. With `reply_to_uid` (and `reply_folder`) it threads the reply and fills in `To` and `Re: subject`. |
 | `send_email` | Sends through SMTP and saves a copy in Sent. Same fields as `create_draft`, but `to` is always required, so the approval prompt shows who gets the mail (a reply's `Reply-To` could point somewhere else). |
 
-The Drafts and Sent folders are found automatically: first by their IMAP special-use flags, then by common names (`INBOX.Drafts`, `Sent Items`…).
+| `move_email` | Moves a message (`uid`, `folder`) to `to_folder`, exactly as `list_folders` shows it. Returns its `new_uid` there. |
+| `mark_spam` | Moves a message to the Junk folder. |
+| `not_spam` | Moves a message from Junk (or the given `folder`) back to `INBOX`. |
+| `trash_email` | Moves a message to Trash. It stays there until you empty it: the server never deletes anything for good. |
+| `mark_email` | Marks a message `read` (true/false) and/or `flagged` (true/false). |
+
+A message gets a new `uid` when it changes folder: use the `new_uid` returned by the move tools for the next step.
+
+The Drafts, Sent, Junk and Trash folders are found automatically: first by their IMAP special-use flags, then by common names (`INBOX.Drafts`, `Sent Items`, `Junk`, `Spam`, `Deleted Items`…). If there is both a Junk and a Spam folder, Junk wins.
 
 ### Environment variables
 
